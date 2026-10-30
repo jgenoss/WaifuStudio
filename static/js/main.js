@@ -26,6 +26,8 @@ import { initTooltipHelp } from "./components/tooltip_help.js";
 import { initTestLab } from "./tabs/test_lab.js";
 import { initTimelineTab, refreshTimelineMedia } from "./tabs/timeline.js";
 import { initGuideTab } from "./tabs/guide.js";
+import { initStories } from "./tabs/stories.js";
+import { initDownloads } from "./downloads.js";
 import { initI18n } from "./i18n.js";
 
 function switchTab(tab) {
@@ -35,6 +37,7 @@ function switchTab(tab) {
   const upscaler = tab === "upscaler";
   const timeline = tab === "timeline";
   const gallery = tab === "gallery";
+  const stories = tab === "stories";
   const guide = tab === "guide";
   const test = tab === "test";
   $("tab-image").classList.toggle("active", image);
@@ -44,6 +47,7 @@ function switchTab(tab) {
   const tabTimelineEl = $("tab-timeline");
   if (tabTimelineEl) tabTimelineEl.classList.toggle("active", timeline);
   $("tab-gallery").classList.toggle("active", gallery);
+  $("tab-stories").classList.toggle("active", stories);
   const tabGuideEl = $("tab-guide");
   if (tabGuideEl) tabGuideEl.classList.toggle("active", guide);
   const tabTestEl = $("tab-test");
@@ -59,6 +63,8 @@ function switchTab(tab) {
     panelTimelineEl.hidden = !timeline;
   }
   $("panel-gallery").classList.toggle("active", gallery);
+  $("panel-stories").classList.toggle("active", stories);
+  $("panel-stories").hidden = !stories;
   const panelGuideEl = $("panel-guide");
   if (panelGuideEl) {
     panelGuideEl.classList.toggle("active", guide);
@@ -157,6 +163,7 @@ function bind() {
     on("tab-timeline", "click", () => switchTab("timeline"));
   }
   on("tab-gallery", "click", () => switchTab("gallery"));
+  on("tab-stories", "click", () => switchTab("stories"));
   const tabGuide = $("tab-guide");
   if (tabGuide) {
     on("tab-guide", "click", () => switchTab("guide"));
@@ -184,7 +191,7 @@ function bind() {
   initCompare(); initLightbox(); initPromptZones(); initPromptPopover();
   initOcPicker(); initOcTrain(); initLoras(); initVision(); initPreprompts();
   initImageViewer(); initImageTab(); initVideoTab(); initVideoH3();
-  initEditorTab(); initUpscalerTab(); initTimelineTab(); initGalleryTab(); initGuideTab();
+  initEditorTab(); initUpscalerTab(); initTimelineTab(); initGalleryTab(); initGuideTab(); initStories(); initDownloads();
   return missing.length === 0;
 }
 

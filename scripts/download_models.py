@@ -21,6 +21,11 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    from scripts.parallel_download import download_parallel, update_download_status
+except ModuleNotFoundError:
+    from parallel_download import download_parallel, update_download_status
+
 APP_ROOT = Path(__file__).resolve().parents[1]
 COMFY_ROOT = APP_ROOT / "ComfyUI"
 
@@ -131,6 +136,19 @@ def download_file(curl_bin: str, url: str, dest_path: Path, expected_bytes: int 
 
     part_path = dest_path.with_name(dest_path.name + ".part")
     print(f"  --> Descargando {dest_path.name} desde {url}...")
+    chunk_dir = part_path.with_name(part_path.name + ".chunks")
+    accelerated = None
+    if (expected_bytes is not None and expected_bytes >= 8 * 1024 * 1024) or chunk_dir.is_dir():
+        try:
+            workers = int(os.environ.get("WAIFU_DOWNLOAD_WORKERS", "8"))
+        except ValueError:
+            workers = 8
+        accelerated = download_parallel(
+            url, part_path, expected_bytes=expected_bytes,
+            workers=max(1, min(16, workers)),
+        )
+    if accelerated is False:
+        return False
     cmd = [
         curl_bin,
         "-L",
@@ -141,10 +159,12 @@ def download_file(curl_bin: str, url: str, dest_path: Path, expected_bytes: int 
         "-o", str(part_path),
         url,
     ]
-    res = subprocess.run(cmd)
-    if res.returncode != 0:
-        print(f"  [ERROR] Fallo la descarga de {dest_path.name} (exit {res.returncode})")
-        return False
+    if accelerated is not True:
+        res = subprocess.run(cmd)
+        if res.returncode != 0:
+            print(f"  [ERROR] Fallo la descarga de {dest_path.name} (exit {res.returncode})")
+            update_download_status(part_path, state="error", detail="Falló curl.exe")
+            return False
 
     if not part_path.is_file():
         print(f"  [ERROR] Archivo parcial no encontrado: {part_path}")
@@ -153,13 +173,23 @@ def download_file(curl_bin: str, url: str, dest_path: Path, expected_bytes: int 
     actual = part_path.stat().st_size
     if expected_bytes and actual != expected_bytes:
         print(f"  [AVISO] Tamano recibido {actual} != esperado {expected_bytes}")
+        update_download_status(part_path, state="error", downloaded=actual, total=expected_bytes,
+                               detail="Tamaño recibido no coincide")
+        return False
     elif min_bytes and actual < min_bytes:
         print(f"  [ERROR] Archivo incompleto: {actual} < minimo {min_bytes}")
+        update_download_status(part_path, state="error", downloaded=actual, total=min_bytes,
+                               detail="Descarga incompleta")
         return False
+    update_download_status(part_path, state="verified", downloaded=actual,
+                           total=expected_bytes or min_bytes or actual,
+                           detail="Tamaño de descarga verificado")
 
     if dest_path.is_file():
         dest_path.unlink()
     part_path.rename(dest_path)
+    if chunk_dir.is_dir():
+        shutil.rmtree(chunk_dir, ignore_errors=True)
     print(f"  [OK] Completado: {dest_path.name} ({dest_path.stat().st_size / (1024**2):.1f} MB)")
     return True
 

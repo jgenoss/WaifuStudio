@@ -179,12 +179,24 @@ async def api_character_refs(char_id: int, request: Request) -> Any:
     if chars.get(char_id) is None:
         return JSONResponse(status_code=404, content={"error": "OC desconocido"})
     items = []
+    identity_ref = chars.first_non_sheet_ref(char_id)
     for ref in chars.refs(char_id):
         item = dict(ref)
         item["url"] = f"/media/characters/{char_id}/{Path(ref['relpath']).name}"
         item["is_sheet"] = is_sheet(ref["relpath"])
+        item["is_identity"] = bool(identity_ref and ref["id"] == identity_ref["id"])
         items.append(item)
     return items
+
+
+@router.put("/api/characters/{char_id}/refs/{ref_id}/identity")
+async def api_character_identity_ref(char_id: int, ref_id: int, request: Request) -> Any:
+    chars = request.app.state.characters
+    if chars.get(char_id) is None:
+        return JSONResponse(status_code=404, content={"error": "OC desconocido"})
+    if not chars.set_identity_ref(char_id, ref_id):
+        return JSONResponse(status_code=404, content={"error": "Referencia desconocida"})
+    return {"character_id": char_id, "ref_id": ref_id, "is_identity": True}
 
 
 @router.post("/api/characters/{char_id}/sheet")

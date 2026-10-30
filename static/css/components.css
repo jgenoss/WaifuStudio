@@ -533,6 +533,26 @@ input[type="checkbox"] {
   gap: 0.4rem;
 }
 
+.oc-design-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.oc-design-actions button {
+  flex: 1 1 150px;
+}
+
+.oc-design-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.oc-design-actions button {
+  flex: 1 1 150px;
+}
+
 .oc-refs {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
@@ -562,6 +582,17 @@ input[type="checkbox"] {
 
 .oc-ref.is-sheet img {
   border-color: var(--accent-2);
+}
+
+.oc-ref.is-identity-ref img {
+  border: 2px solid var(--accent);
+}
+
+.oc-ref-identity-badge {
+  color: var(--accent);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .oc-ref-badge {

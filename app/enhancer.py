@@ -553,7 +553,7 @@ def _resolve_timeout(timeout: float | None = None) -> float:
     return DEFAULT_LLM_TIMEOUT
 
 
-def _http_transport(url: str, payload: dict | None, timeout: float) -> dict:
+def _http_transport(url: str, payload: dict | None, timeout: float, api_key: str | None = None) -> dict:
     """Transporte HTTP por defecto (`urllib`): GET sin payload, POST JSON con el.
 
     Devuelve el JSON parseado; una respuesta 2xx sin JSON valido devuelve `{}`.
@@ -561,6 +561,8 @@ def _http_transport(url: str, payload: dict | None, timeout: float) -> dict:
     corto. Es el unico camino que abre sockets; en tests se inyecta otro.
     """
     headers = {"User-Agent": LLM_USER_AGENT}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     data = None
     method = "GET"
     if payload is not None:
@@ -596,6 +598,7 @@ def load_server_llm(
     temperature: float = 0.7,
     timeout: float | None = None,
     model: str = "qwen35-9b-abliterated",
+    api_key: str | None = None,
 ) -> LlmFn:
     """Cliente del `llama-server` OpenAI-compatible: `llm(system, user, temperature=None) -> str`.
 
@@ -609,7 +612,12 @@ def load_server_llm(
     jamas se toca en tests.
     """
     base = _resolve_base_url(base_url)
-    send = transport if transport is not None else _http_transport
+    if transport is not None:
+        send = transport
+    elif api_key:
+        send = lambda url, payload, timeout: _http_transport(url, payload, timeout, api_key)
+    else:
+        send = _http_transport
     effective_timeout = _resolve_timeout(timeout)
     default_temperature = temperature
     default_max_tokens = max_tokens

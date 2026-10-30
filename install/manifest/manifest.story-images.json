@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "app": "WAIFU",
+  "task": "Archivos mínimos de Anima para ilustraciones en Historias",
+  "files": [
+    {
+      "id": "story-anima-29b",
+      "kind": "model",
+      "filename": "Anima-2.9B-preview-v1.safetensors",
+      "target": "ComfyUI/models/diffusion_models",
+      "bytes": 5843204206,
+      "sha256": "0b3020d1b906155f7eb30667622723e87160632c8c7a5f1c93bdce685f2a346d",
+      "url": "https://huggingface.co/Gazingstars123/Anima-2.9B/resolve/9f9cb502dbae7a616c3cc5a530633427fe735665/Anima-2.9B-preview-v1.safetensors",
+      "license": "circlestone-labs-non-commercial-license v1.2 (uso no comercial)"
+    },
+    {
+      "id": "story-anima-text-encoder",
+      "kind": "model",
+      "filename": "qwen_3_06b_base.safetensors",
+      "target": "ComfyUI/models/text_encoders",
+      "bytes": 1192135096,
+      "sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+      "url": "https://huggingface.co/circlestone-labs/Anima/resolve/f973fc41ec7545364ac9776c2440285f43ff2a30/split_files/text_encoders/qwen_3_06b_base.safetensors",
+      "license": "circlestone-labs-non-commercial-license v1.2 (uso no comercial)"
+    },
+    {
+      "id": "story-anima-vae",
+      "kind": "model",
+      "filename": "qwen_image_vae.safetensors",
+      "target": "ComfyUI/models/vae",
+      "bytes": 253806246,
+      "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f",
+      "url": "https://huggingface.co/circlestone-labs/Anima/resolve/f973fc41ec7545364ac9776c2440285f43ff2a30/split_files/vae/qwen_image_vae.safetensors",
+      "license": "circlestone-labs-non-commercial-license v1.2 (uso no comercial)"
+    }
+  ]
+}

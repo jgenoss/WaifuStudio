@@ -17,6 +17,8 @@
   <link rel="stylesheet" href="/static/css/tabs/guide.css">
   <link rel="stylesheet" href="/static/css/tabs/gallery.css">
   <link rel="stylesheet" href="/static/css/tabs/test_lab.css">
+  <link rel="stylesheet" href="/static/css/tabs/stories.css">
+  <link rel="stylesheet" href="/static/css/downloads.css">
 </head>
 <body>
   <header class="topbar">
@@ -27,11 +29,16 @@
       <button id="tab-editor" class="tab" type="button">Editor</button>
       <button id="tab-upscaler" class="tab" type="button">Upscaler</button>
       <button id="tab-timeline" class="tab" data-tab="timeline" type="button">🎬 Estudio</button>
+      <button id="tab-stories" class="tab" type="button">Historias</button>
       <button id="tab-gallery" class="tab" type="button">Galería</button>
       <button id="tab-guide" class="tab" data-tab="guide" type="button">📖 Guía</button>
       <button id="tab-test" class="tab hidden" data-tab="test" type="button" hidden>TEST</button>
     </nav>
     <div class="topbar-actions">
+      <button id="system-readiness" class="system-readiness checking" type="button" aria-live="polite" title="Comprobando servicios y modelos">
+        <span class="system-readiness-dot" aria-hidden="true"></span><span id="system-readiness-label">Comprobando sistema…</span>
+      </button>
+      <button id="btn-downloads" class="topbar-btn downloads-button" type="button" aria-label="Ver estado de descargas" title="Estado de descargas"><span aria-hidden="true">↓</span><span>Descargas</span><span id="download-active-badge" class="download-active-badge hidden">0</span></button>
       <button id="btn-universal-reload" class="topbar-btn" type="button" title="Recargar pestaña actual" aria-label="Recargar pestaña actual">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
       </button>
@@ -53,6 +60,57 @@
   </header>
 
   <main>
+    <section id="panel-stories" class="panel stories-panel" hidden>
+      <aside class="stories-sidebar">
+        <div class="stories-sidebar-head"><div><strong>Novelas vivas</strong><small>Escenas que continúan contigo</small></div><button id="btn-story-new" class="primary" type="button">Nueva</button></div>
+        <div id="story-list" class="story-list"></div>
+        <p id="story-list-empty" class="stories-muted">Crea una historia para empezar.</p>
+      </aside>
+      <section class="story-workspace">
+        <div id="story-model-tools" class="story-model-tools">
+          <button id="btn-story-model-tools-toggle" class="secondary story-model-tools-toggle" type="button" aria-expanded="true" aria-controls="story-model-card story-image-model-card">Ocultar modelos</button>
+          <div id="story-model-card" class="story-model-card" role="status">
+            <div class="story-model-copy"><strong>Modelo conversacional</strong><span id="story-model-state">Preparando…</span><small id="story-model-detail">Qwen3.5-4B · 2,71 GB · CPU · 4K contexto</small></div>
+            <progress id="story-model-progress" max="100" value="0" hidden></progress>
+            <button id="btn-story-model" class="primary" type="button">Descargar e iniciar modelo</button>
+          </div>
+          <div id="story-image-model-card" class="story-model-card story-image-model-card" role="status">
+            <div class="story-model-copy"><strong>Ilustraciones de escenas</strong><span id="story-image-model-state">Comprobando modelos…</span><small id="story-image-model-detail">Anima 2.9B · 7,29 GB · uso no comercial</small></div>
+            <progress id="story-image-model-progress" max="100" value="0" hidden></progress>
+            <button id="btn-story-image-model" class="secondary" type="button">Descargar modelo de imagen · 7,29 GB</button>
+          </div>
+        </div>
+        <div id="story-welcome" class="story-welcome"><div class="story-welcome-art">✦</div><h2>Tu próxima historia empieza aquí</h2><p>Elige un personaje, define el tono y construyan la novela escena a escena.</p><button id="btn-story-start" class="primary" type="button">Crear una historia</button></div>
+        <div id="story-active" class="story-active hidden">
+          <header class="story-header"><div><h2 id="story-title"></h2><p id="story-subtitle"></p></div><button id="btn-story-delete" class="danger" type="button" title="Eliminar historia">Eliminar</button></header>
+          <div id="story-messages" class="story-messages" aria-live="polite"></div>
+          <div id="story-status" class="story-status" role="status"></div>
+          <form id="story-compose" class="story-compose"><textarea id="story-input" rows="2" maxlength="4000" placeholder="Escribe lo que dices o haces en la escena…" required></textarea><div class="story-compose-actions"><span>Enter para enviar · Shift+Enter para nueva línea</span><button id="btn-story-send" class="primary" type="submit">Enviar</button></div></form>
+        </div>
+        <form id="story-create" class="story-create hidden">
+          <button id="btn-story-create-back" class="story-back" type="button">← Volver</button><p class="eyebrow">NUEVA NOVELA</p><h2>¿Qué historia contamos?</h2>
+          <div class="story-character-picker"><label class="field"><span>Personaje</span><select id="story-character" required></select></label><button id="btn-story-character-new" class="secondary" type="button">Crear personaje</button></div>
+          <label class="field"><span>Título (opcional)</span><input id="story-title-input" maxlength="100" placeholder="Un encuentro inesperado"></label>
+          <label class="field"><span>Escena de bienvenida (opcional)</span><textarea id="story-opening-input" maxlength="1200" rows="3" placeholder="Describe dónde empieza y qué sucede; el personaje abrirá la historia con este contexto."></textarea></label>
+          <div class="story-create-grid"><label class="field"><span>Género</span><select id="story-genre"><option>Romance</option><option>Romance erótico</option><option>Erótico / sexual</option><option>Aventura</option><option>Fantasía</option><option>Misterio</option><option>Drama</option></select></label><label class="field"><span>Tono</span><select id="story-tone"><option>Cálido</option><option>Cinematográfico</option><option>Ligero</option><option>Melancólico</option><option>Intenso</option></select></label></div>
+          <label class="field"><span>Contenido</span><select id="story-rating"><option value="sfw">Apto para todo público</option><option value="nsfw">Adultos · 21+</option></select></label>
+          <label id="story-adult-consent-wrap" class="story-consent hidden"><input id="story-adult-consent" type="checkbox"><span>Confirmo que soy mayor de edad y que los personajes adultos son ficticios y tienen 21 años o más.</span></label>
+          <p id="story-config-note" class="stories-muted"></p><button class="primary story-create-submit" type="submit">Crear novela</button>
+        </form>
+        <section id="story-character-create" class="story-create hidden">
+          <button id="btn-story-character-back" class="story-back" type="button">← Volver a la novela</button><p class="eyebrow">PERSONAJE PARA TUS HISTORIAS</p><h2>Diseña a tu personaje</h2>
+          <form id="story-character-form">
+            <button id="btn-story-character-random" type="button">Crear personaje aleatorio</button>
+            <label class="field"><span>Nombre</span><input id="story-character-name" maxlength="80" required placeholder="Mika"></label>
+            <div class="story-create-grid"><label class="field"><span>Edad</span><input id="story-character-age" type="number" min="21" max="120" value="21" required></label><label class="field"><span>Identidad</span><input id="story-character-identity" maxlength="80" placeholder="Mujer, hombre, no binario…"></label></div>
+            <label class="field"><span>Apariencia y rasgos</span><textarea id="story-character-appearance" maxlength="1000" rows="3" placeholder="Cabello oscuro, mirada tranquila…"></textarea></label>
+            <label class="field"><span>Personalidad</span><textarea id="story-character-personality" maxlength="1200" rows="3" required placeholder="Curiosa, directa, reservada…"></textarea></label>
+            <label class="field"><span>Historia y forma de hablar</span><textarea id="story-character-background" maxlength="1600" rows="4" placeholder="Su pasado, objetivos y estilo al conversar…"></textarea></label>
+            <p id="story-character-create-status" class="stories-muted" role="status"></p><button class="primary story-create-submit" type="submit">Guardar personaje</button>
+          </form>
+        </section>
+      </section>
+    </section>
     <section id="panel-image" class="panel tab-canonical-layout active">
       <aside class="controls image-controls tab-sidebar">
         <!-- MÓDULO DE GENERACIÓN (Permanente / Sticky) -->
@@ -1374,6 +1432,15 @@ non_diegetic_music: &lt;música instrumental o None&gt;</pre>
               <span>Nombre</span>
               <input id="oc-form-name" type="text" placeholder="Nombre del OC">
             </label>
+            <label class="field">
+              <span>Diseño visual fijo</span>
+              <textarea id="oc-form-visual" rows="3" maxlength="1200" placeholder="Adult woman, long black hair, red eyes, pale skin, gothic outfit, silver moon hairpin…"></textarea>
+            </label>
+            <div class="oc-design-actions">
+              <button id="btn-oc-random-design" type="button">Crear diseño aleatorio</button>
+              <button id="btn-oc-copy-prompt" type="button">Copiar prompt visual</button>
+            </div>
+            <p class="oc-refs-note">Este diseño queda guardado como identidad del personaje y se prioriza en las ilustraciones de historias.</p>
             <div class="grid-2">
               <label class="field">
                 <span>Preprompt</span>
@@ -1400,7 +1467,7 @@ non_diegetic_music: &lt;música instrumental o None&gt;</pre>
         </section>
         <section class="oc-section">
           <h3>Referencias <span id="oc-refs-title" class="oc-refs-title"></span></h3>
-          <p id="oc-refs-note" class="oc-refs-note">Las hojas (badge «hoja») son catálogo para IPAdapter (M10); no se adjuntan solas como referencia I2I. Usa «Usar como referencia» para adjuntar una ref concreta.</p>
+          <p id="oc-refs-note" class="oc-refs-note">Marca «Usar como imagen base» en un retrato individual para fijar la apariencia. Historias reutiliza esa imagen junto con la acción y el escenario de cada turno. Las hojas («hoja») son catálogos y no sirven como imagen base.</p>
           <div id="oc-refs" class="oc-refs"></div>
           <div class="oc-refs-actions">
             <button id="btn-oc-sheet" type="button" title="Genera una hoja catálogo para IPAdapter (M10); no se adjunta como referencia I2I" disabled>Crear hoja</button>
@@ -1699,6 +1766,14 @@ non_diegetic_music: &lt;música instrumental o None&gt;</pre>
         </div>
       </div>
     </div>
+  </div>
+
+  <div id="model-download-modal" class="modal downloads-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="download-modal-title">
+    <section class="modal-box download-modal">
+      <header class="modal-header"><div><h2 id="download-modal-title">Descargas de modelos</h2><p id="download-modal-summary">Estado de transferencias recientes</p></div><button id="btn-downloads-close" type="button" aria-label="Cerrar">×</button></header>
+      <div id="model-download-list" class="model-download-list" aria-live="polite"></div>
+      <footer class="modal-footer"><button id="btn-downloads-refresh" type="button">Actualizar</button></footer>
+    </section>
   </div>
 
   <div id="lightbox" class="lightbox hidden">

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "app": "WAIFU",
+  "task": "LLM conversacional local para Historias; Qwen3.5-4B Q4_K_M optimizado para 6 GB VRAM",
+  "files": [
+    {
+      "id": "llama-b11978-win-cpu-x64-story",
+      "kind": "runtime",
+      "filename": "llama-b11978-bin-win-cpu-x64.zip",
+      "target": "tools/llama.cpp/dist",
+      "extract_to": "tools/llama.cpp",
+      "bytes": 24408808,
+      "sha256": "ad44d0b353d1f260263943b399d932b146e3ecf983218c7c5efd7d782b774c86",
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11978/llama-b11978-bin-win-cpu-x64.zip",
+      "source": "ggml-org/llama.cpp b11978 Windows x64 CPU release"
+    },
+    {
+      "id": "qwen35-4b-story-q4km",
+      "kind": "model",
+      "filename": "Qwen3.5-4B-Q4_K_M.gguf",
+      "target": "ComfyUI/models/llm/story-qwen35-4b",
+      "bytes": 2707513696,
+      "sha256": "25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c",
+      "url": "https://huggingface.co/Canfield/Qwen3.5-4B-Q4_K_M-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
+      "source": "Canfield copy of lmstudio-community/Qwen3.5-4B-GGUF; base Qwen/Qwen3.5-4B",
+      "license": "Apache-2.0"
+    }
+  ]
+}

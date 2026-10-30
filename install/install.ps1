@@ -114,14 +114,41 @@ function Assert-FileHash {
 
 function Get-VerifiedFile {
     param([string]$Url, [string]$Destination, [string]$Sha256, [long]$Bytes)
-    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
-    if (-not $curl) { throw 'curl.exe no disponible (lo incluye Windows 10 1803+).' }
     $tmp = $Destination + '.part'
-    Write-Host ("    > curl -L --fail --retry 3 -C - -o {0}" -f $tmp)
-    & curl.exe -L --fail --retry 3 --retry-delay 2 -C - -o $tmp $Url
-    if ($LASTEXITCODE -ne 0) { throw ("descarga fallida (exit {0}): {1}" -f $LASTEXITCODE, $Url) }
+    $accelerated = $false
+    $parallelScript = Join-Path $Root 'scripts\parallel_download.py'
+    if ((Test-Path -LiteralPath $VenvPython) -and (Test-Path -LiteralPath $parallelScript)) {
+        $workerText = "$env:WAIFU_DOWNLOAD_WORKERS".Trim()
+        $workers = 8
+        if ($workerText -match '^\d+$') { $workers = [math]::Max(1, [math]::Min(16, [int]$workerText)) }
+        $parallelArgs = @($parallelScript, '--url', $Url, '--partial', $tmp, '--workers', "$workers")
+        if ($Bytes -gt 0) { $parallelArgs += @('--bytes', "$Bytes") }
+        Write-Host ("    > descarga paralela ({0} conexiones)" -f $workers)
+        & $VenvPython @parallelArgs
+        if ($LASTEXITCODE -eq 0) { $accelerated = $true }
+        elseif ($LASTEXITCODE -ne 2) { Write-Warn 'El acelerador no completó la descarga; se continuará con curl.' }
+    }
+    if (-not $accelerated) {
+        $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+        if (-not $curl) { throw 'curl.exe no disponible (lo incluye Windows 10 1803+).' }
+        Write-Host ("    > curl -L --fail --retry 3 -C - -o {0}" -f $tmp)
+        & curl.exe -L --fail --retry 3 --retry-delay 2 -C - -o $tmp $Url
+        if ($LASTEXITCODE -ne 0) { throw ("descarga fallida (exit {0}): {1}" -f $LASTEXITCODE, $Url) }
+    }
     Assert-FileHash -Path $tmp -Sha256 $Sha256 -Bytes $Bytes
+    if ((Test-Path -LiteralPath $VenvPython) -and (Test-Path -LiteralPath $parallelScript)) {
+        & $VenvPython $parallelScript --partial $tmp --bytes $Bytes --mark verified
+    }
     Move-Item -LiteralPath $tmp -Destination $Destination -Force
+    $chunks = $tmp + '.chunks'
+    if (Test-Path -LiteralPath $chunks) {
+        $rootPath = [System.IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+        $chunksPath = [System.IO.Path]::GetFullPath($chunks)
+        if (-not $chunksPath.StartsWith($rootPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "ruta temporal fuera del repositorio: $chunksPath"
+        }
+        Remove-Item -LiteralPath $chunksPath -Recurse -Force
+    }
 }
 
 function Invoke-Preflight {

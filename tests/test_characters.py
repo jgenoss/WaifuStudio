@@ -80,7 +80,10 @@ class InitTests(CharacterStoreTestCase):
                 "created_at",
             ],
         )
-        self.assertEqual(ref_columns, ["id", "character_id", "relpath", "created_at"])
+        self.assertEqual(
+            ref_columns,
+            ["id", "character_id", "relpath", "is_identity", "created_at"],
+        )
 
     def test_init_idempotente(self):
         self.store.init()

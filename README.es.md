@@ -109,6 +109,10 @@ stop_engine.bat  detiene solo ComfyUI
 
 FFmpeg se instala por defecto. `-SkipFfmpeg` existe para instalaciones mínimas, pero el export y la concatenación del Timeline no funcionarán. `install.bat` también crea `WAIFUSTUDIO.lnk` con el icono de la app; si mueves la carpeta, ejecuta `scripts\create_shortcut.ps1` o vuelve a ejecutar el instalador.
 
+## Novelas vivas
+
+La pestaña **Historias** permite crear novelas persistentes, crear personajes adultos con edad, apariencia, personalidad y trasfondo, conversar por escenas e ilustrar respuestas usando la cola normal de WaifuStudio. Está adaptada a pantallas Android con lista horizontal de novelas, controles táctiles y composición que deja espacio al teclado. Al abrir el portal, puedes ir a Historias de inmediato y usar **Descargar e iniciar modelo** cuando quieras; el botón descarga y verifica **Qwen3.5-4B Q4_K_M** (2,71 GB) y el runtime de llama.cpp. El módulo **Ilustraciones de escenas** ofrece descargar el conjunto mínimo Anima (7,29 GB: modelo, codificador de texto y VAE) con reanudación y verificación; Anima usa licencia no comercial. Las descargas grandes usan hasta 8 conexiones paralelas cuando el servidor permite rangos HTTP; el número se ajusta con `WAIFU_DOWNLOAD_WORKERS` (1–16). El botón **Descargas** del encabezado abre el estado global de las transferencias recientes, con progreso, velocidad y conexiones. El modelo conversacional corre en CPU con 4 hilos y contexto 4096 para dejar la VRAM libre a ComfyUI. El valor predeterminado son 4 hilos; se puede cambiar con `WAIFU_STORY_THREADS` (1–12) antes de arrancar. Para los géneros **Romance erótico** o **Erótico / sexual** y las escenas NSFW, selecciona **Adultos · 21+** y confirma la casilla de mayoría de edad al crear la historia. Las instrucciones del personaje restringen la intimidad a adultos y al consentimiento. Las imágenes se piden manualmente desde cada escena y se guardan en la galería existente.
+
 ## Actualización
 
 ### Instalación Git

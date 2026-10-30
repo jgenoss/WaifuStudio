@@ -22,6 +22,61 @@ import { selectLora } from "./loras.js";
 import { refreshNegative } from "../tabs/image.js";
 
 let ocSearchTimer = null;
+const VISUAL_DESIGN_BLOCK = "[DISEÑO_VISUAL_FIJO]";
+const VISUAL_DESIGN_END = "[/DISEÑO_VISUAL_FIJO]";
+
+function savedVisualDesign(notes = "") {
+  const match = String(notes).match(/\[DISEÑO_VISUAL_FIJO\]\s*([\s\S]*?)\s*\[\/DISEÑO_VISUAL_FIJO\]/i);
+  return match ? match[1].trim() : "";
+}
+
+function notesWithoutVisualDesign(notes = "") {
+  return String(notes).replace(/\s*\[DISEÑO_VISUAL_FIJO\][\s\S]*?\[\/DISEÑO_VISUAL_FIJO\]\s*/gi, "\n").trim();
+}
+
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function randomCharacterDesign() {
+  const names = ["Luna", "Mika", "Akira", "Vera", "Nadia", "Kaori", "Dante", "Ren"];
+  const identities = ["adult woman", "adult man", "androgynous adult"];
+  const hair = ["long black hair", "short silver hair", "wavy auburn hair", "long lavender hair", "short teal hair", "curly dark brown hair"];
+  const eyes = ["amber eyes", "violet eyes", "emerald eyes", "ice blue eyes", "crimson eyes", "gray eyes"];
+  const skin = ["pale skin", "warm brown skin", "olive skin", "deep brown skin", "freckled fair skin"];
+  const builds = ["slender build", "athletic build", "soft curvy build", "tall elegant build", "compact muscular build"];
+  const outfits = ["black gothic coat with silver trim", "tailored burgundy suit", "modern streetwear with layered accessories", "fantasy traveler outfit with leather details", "white blouse and dark pleated skirt", "navy uniform with gold accents"];
+  const details = ["silver moon hairpin", "small beauty mark under one eye", "round glasses", "star-shaped earrings", "subtle scar over one eyebrow", "black ribbon choker"];
+  const identity = randomItem(identities);
+  const fixedTraits = [identity, randomItem(hair), randomItem(eyes), randomItem(skin), randomItem(builds)];
+  const visual = [...fixedTraits, randomItem(outfits), randomItem(details)].join(", ");
+  if (!$("oc-form-name").value.trim()) $("oc-form-name").value = randomItem(names);
+  $("oc-form-visual").value = visual;
+  state.ocSelectedTags = fixedTraits;
+  renderOcSelected();
+  renderOcCatalogResults();
+  if (!$("oc-form-notes").value.trim()) {
+    $("oc-form-notes").value = "Edad: 24 años (adulto, 21+).\nPersonalidad: curiosa, ingeniosa y de voluntad firme.\nForma de hablar: natural y expresiva.";
+  }
+  setOcStatus("Diseño aleatorio listo; puedes editar cada rasgo antes de guardarlo.");
+}
+
+async function copyCharacterPrompt() {
+  const name = $("oc-form-name").value.trim() || "personaje original";
+  const visual = $("oc-form-visual").value.trim();
+  const tags = state.ocSelectedTags.join(", ");
+  if (!visual && !tags) {
+    setOcStatus("Añade rasgos o crea un diseño aleatorio primero.", true);
+    return;
+  }
+  const prompt = `single adult anime character, character reference portrait, consistent recognizable design, ${name}, ${tags}, ${visual}, clear face and silhouette, neutral simple background`;
+  try {
+    await navigator.clipboard.writeText(prompt);
+    setOcStatus("Prompt visual copiado; puedes pegarlo en Imagen para generar la referencia del personaje.");
+  } catch {
+    setOcStatus(prompt);
+  }
+}
 
 function setOcStatus(text, isError = false) {
   const el = $("oc-status");
@@ -341,6 +396,7 @@ function resetOcForm() {
     (preprompt.options.length ? preprompt.options[0].value : "");
   $("oc-form-rating").value = "sfw";
   $("oc-form-notes").value = "";
+  $("oc-form-visual").value = "";
   updateOcFormMode();
   renderOcSelected();
   renderOcExtras();
@@ -358,7 +414,8 @@ function fillCharacterForm(character) {
   $("oc-form-name").value = character.name;
   $("oc-form-preprompt").value = character.preprompt;
   $("oc-form-rating").value = character.rating;
-  $("oc-form-notes").value = character.notes;
+  $("oc-form-notes").value = notesWithoutVisualDesign(character.notes);
+  $("oc-form-visual").value = savedVisualDesign(character.notes);
   updateOcFormMode();
   renderOcSelected();
   renderOcExtras();
@@ -455,7 +512,12 @@ async function saveCharacter(event) {
     tags: state.ocSelectedTags.slice(),
     preprompt: $("oc-form-preprompt").value,
     rating: $("oc-form-rating").value,
-    notes: $("oc-form-notes").value,
+    notes: [
+      $("oc-form-notes").value.trim(),
+      $("oc-form-visual").value.trim()
+        ? `${VISUAL_DESIGN_BLOCK}\n${$("oc-form-visual").value.trim()}\n${VISUAL_DESIGN_END}`
+        : "",
+    ].filter(Boolean).join("\n\n"),
   };
   try {
     let charId = state.ocEditingId;
@@ -508,11 +570,18 @@ async function loadCharacterRefs() {
     if (isSheetRef(ref)) {
       figure.classList.add("is-sheet");
     }
+    if (ref.is_identity) figure.classList.add("is-identity-ref");
     const img = document.createElement("img");
     img.src = ref.url;
     img.alt = `Referencia ${ref.id}`;
     img.loading = "lazy";
     figure.appendChild(img);
+    if (ref.is_identity) {
+      const identityBadge = document.createElement("span");
+      identityBadge.className = "oc-ref-identity-badge";
+      identityBadge.textContent = "imagen base del personaje";
+      figure.appendChild(identityBadge);
+    }
     if (isSheetRef(ref)) {
       const badge = document.createElement("span");
       badge.className = "oc-ref-badge";
@@ -534,6 +603,21 @@ async function loadCharacterRefs() {
     use.addEventListener("click", () => {
       useRefAsReference(ref).catch((error) => setOcStatus(error.message, true));
     });
+    if (!isSheetRef(ref) && !ref.is_identity) {
+      const setIdentity = document.createElement("button");
+      setIdentity.type = "button";
+      setIdentity.textContent = "Usar como imagen base";
+      setIdentity.addEventListener("click", () => {
+        api(`/api/characters/${ref.character_id}/refs/${ref.id}/identity`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }).then(loadCharacterRefs).then(() => {
+          setOcStatus("Imagen base del personaje actualizada; las próximas escenas usarán esta referencia.");
+        }).catch((error) => setOcStatus(error.message, true));
+      });
+      figure.appendChild(setIdentity);
+    }
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "Quitar";
@@ -690,6 +774,10 @@ function initOcPicker() {
     }, 250);
   });
   on("oc-form", "submit", saveCharacter);
+  on("btn-oc-random-design", "click", randomCharacterDesign);
+  on("btn-oc-copy-prompt", "click", () => {
+    copyCharacterPrompt().catch((error) => setOcStatus(error.message, true));
+  });
   on("btn-oc-new", "click", () => {
     startNewOc().catch((error) => setOcStatus(error.message, true));
   });
@@ -743,6 +831,9 @@ export {
   duplicateCharacter,
   deleteCharacter,
   saveCharacter,
+  randomCharacterDesign,
+  copyCharacterPrompt,
+  savedVisualDesign,
   loadCharacterRefs,
   removeCharacterRef,
   createCharacterSheet,

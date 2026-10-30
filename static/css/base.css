@@ -65,6 +65,14 @@ body {
   gap: 0.5rem;
 }
 
+.system-readiness { display:inline-flex; align-items:center; gap:.45rem; min-height:34px; padding:.35rem .6rem; border:1px solid var(--border); border-radius:999px; background:#20222a; color:var(--muted); font-size:.72rem; white-space:nowrap; cursor:pointer; }
+.system-readiness-dot { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:#e0ad58; box-shadow:0 0 0 3px #e0ad5822; }
+.system-readiness.ready { color:#d8f8e2; border-color:#397a54; background:#173023; }
+.system-readiness.ready .system-readiness-dot { background:#49ce7b; box-shadow:0 0 0 3px #49ce7b22; }
+.system-readiness.partial .system-readiness-dot { background:#e0ad58; }
+.system-readiness.offline { color:#ffdadd; border-color:#7c3e49; background:#321c23; }
+.system-readiness.offline .system-readiness-dot { background:#f06d78; box-shadow:0 0 0 3px #f06d7822; }
+
 .topbar-btn {
   display: inline-flex;
   align-items: center;

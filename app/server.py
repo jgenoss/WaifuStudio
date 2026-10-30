@@ -19,6 +19,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app import trainer
 from app.characters import CharacterStore
+from app.stories import StoryStore
+from app.story_model import StoryModelManager
 from app.config import APP_ROOT, EngineConfig, load_config
 from app.editor import EDITOR_DEFAULT_CFG, EDITOR_DEFAULT_STEPS, run_editor_generation
 from app.engine import ComfyEngine, EngineError
@@ -39,8 +41,11 @@ from app.routes.models import (
     _lora_upload_target, _require_lora_family, _require_lora_filename, add_lora, lora_file_path,
     router as models_router,
 )
+from app.story_image_model import StoryImageModelManager
 from app.routes.tags import TAGS_UNFILTERED_LIMIT, _clamp_tags_limit, router as tags_router
 from app.routes.characters import router as characters_router, run_training_job
+from app.routes.stories import router as stories_router
+from app.routes.downloads import router as downloads_router
 from app.routes.presets import router as presets_router
 from app.routes.gallery import CHARACTER_MEDIA_TYPES, MEDIA_TYPES, MEDIA_URL, router as gallery_router
 from app.routes.image import (
@@ -85,7 +90,15 @@ def create_app(
     )
     if character_store is None:
         chars.init()
+    stories = StoryStore(chars.db_path)
+    stories.init()
+    try:
+        story_threads = int(os.environ.get("WAIFU_STORY_THREADS", "4"))
+    except ValueError:
+        story_threads = 4
+    story_model_manager = StoryModelManager(APP_ROOT, threads=story_threads)
     reg = registry if registry is not None else ModelRegistry.load(REGISTRY_PATH)
+    story_image_model_manager = StoryImageModelManager(APP_ROOT, cfg, reg)
     factory = engine_factory if engine_factory is not None else (lambda: ComfyEngine(cfg))
     video_factory = (
         engine_factory if engine_factory is not None
@@ -141,6 +154,7 @@ def create_app(
         try:
             yield
         finally:
+            story_model_manager.stop()
             if start_worker:
                 queue.stop()
                 mgr = _get_manager()
@@ -159,6 +173,16 @@ def create_app(
     app.state.queue = queue
     app.state.jobs = {}
     app.state.characters = chars
+    app.state.stories = stories
+    app.state.story_model = story_model_manager
+    app.state.story_image_model = story_image_model_manager
+    story_url = os.environ.get("WAIFU_STORY_LLM_URL", "").strip()
+    story_model_id = os.environ.get("WAIFU_STORY_LLM_MODEL", "local-model").strip() or "local-model"
+    story_api_key = os.environ.get("WAIFU_STORY_LLM_API_KEY", "").strip() or None
+    app.state.story_llm = (
+        load_server_llm(story_url, model=story_model_id, api_key=story_api_key, max_tokens=500, temperature=0.85)
+        if story_url else app.state.story_model.chat
+    )
     app.state.vision = vision_service
 
     @app.middleware("http")
@@ -178,6 +202,8 @@ def create_app(
     app.include_router(models_router)
     app.include_router(tags_router)
     app.include_router(characters_router)
+    app.include_router(stories_router)
+    app.include_router(downloads_router)
     app.include_router(presets_router)
     app.include_router(timeline_router)
     app.include_router(gallery_router)

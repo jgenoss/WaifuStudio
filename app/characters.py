@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS character_refs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     relpath TEXT NOT NULL,
+    is_identity INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 )
 """
@@ -154,6 +155,35 @@ class CharacterStore:
             with closing(self._connect()) as conn, conn:
                 conn.execute(_CHARACTERS_SCHEMA)
                 conn.execute(_REFS_SCHEMA)
+                ref_columns = {row[1] for row in conn.execute("PRAGMA table_info(character_refs)")}
+                if "is_identity" not in ref_columns:
+                    conn.execute(
+                        "ALTER TABLE character_refs ADD COLUMN is_identity INTEGER NOT NULL DEFAULT 0"
+                    )
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_character_identity_ref "
+                    "ON character_refs(character_id) WHERE is_identity = 1"
+                )
+                characters_with_refs = conn.execute(
+                    "SELECT DISTINCT character_id FROM character_refs WHERE is_identity=0"
+                ).fetchall()
+                for (char_id,) in characters_with_refs:
+                    has_identity = conn.execute(
+                        "SELECT 1 FROM character_refs WHERE character_id=? AND is_identity=1 LIMIT 1",
+                        (char_id,),
+                    ).fetchone()
+                    if has_identity:
+                        continue
+                    candidates = conn.execute(
+                        "SELECT id, relpath FROM character_refs WHERE character_id=? ORDER BY id",
+                        (char_id,),
+                    ).fetchall()
+                    first_ref = next((row for row in candidates if not is_sheet(row[1])), None)
+                    if first_ref:
+                        conn.execute(
+                            "UPDATE character_refs SET is_identity=1 WHERE id=?",
+                            (first_ref[0],),
+                        )
                 columns = {
                     row[1] for row in conn.execute("PRAGMA table_info(characters)")
                 }
@@ -410,10 +440,14 @@ class CharacterStore:
         relpath = f"{char_id}/{filename}"
         try:
             with closing(self._connect()) as conn, conn:
+                has_identity = conn.execute(
+                    "SELECT 1 FROM character_refs WHERE character_id=? AND is_identity=1 LIMIT 1",
+                    (char_id,),
+                ).fetchone()
                 conn.execute(
-                    "INSERT INTO character_refs (character_id, relpath, created_at) "
-                    "VALUES (?, ?, ?)",
-                    (char_id, relpath, _now()),
+                    "INSERT INTO character_refs (character_id, relpath, is_identity, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (char_id, relpath, int(has_identity is None and not is_sheet(relpath)), _now()),
                 )
         except sqlite3.Error as exc:
             target.unlink(missing_ok=True)
@@ -427,8 +461,8 @@ class CharacterStore:
         try:
             with closing(self._connect()) as conn, conn:
                 rows = conn.execute(
-                    f"SELECT {_REF_COLUMNS} FROM character_refs "
-                    "WHERE character_id = ? ORDER BY id",
+                    f"SELECT {_REF_COLUMNS}, is_identity FROM character_refs "
+                    "WHERE character_id = ? ORDER BY is_identity DESC, id",
                     (char_id,),
                 ).fetchall()
         except sqlite3.Error as exc:
@@ -439,16 +473,47 @@ class CharacterStore:
                 "character_id": row[1],
                 "relpath": row[2],
                 "created_at": row[3],
+                "is_identity": bool(row[4]),
             }
             for row in rows
         ]
 
     def first_non_sheet_ref(self, char_id: int) -> dict | None:
         """Primera ref que no es hoja (orden de id) o None; EngineError si el OC no existe."""
-        for ref in self.refs(char_id):
+        refs = self.refs(char_id)
+        for ref in refs:
+            if ref["is_identity"] and not is_sheet(ref["relpath"]):
+                return ref
+        for ref in refs:
             if not is_sheet(ref["relpath"]):
                 return ref
         return None
+
+    def set_identity_ref(self, char_id: int, ref_id: int) -> bool:
+        """Set a saved non-sheet image as the canonical visual reference."""
+        if self.get(char_id) is None:
+            raise EngineError(f"OC desconocido: {char_id}")
+        try:
+            with closing(self._connect()) as conn, conn:
+                row = conn.execute(
+                    "SELECT relpath FROM character_refs WHERE id=? AND character_id=?",
+                    (ref_id, char_id),
+                ).fetchone()
+                if row is None:
+                    return False
+                if is_sheet(row[0]):
+                    raise EngineError("Una hoja de referencias no puede ser la imagen base; elige un retrato individual")
+                conn.execute(
+                    "UPDATE character_refs SET is_identity=0 WHERE character_id=?",
+                    (char_id,),
+                )
+                conn.execute(
+                    "UPDATE character_refs SET is_identity=1 WHERE id=? AND character_id=?",
+                    (ref_id, char_id),
+                )
+            return True
+        except sqlite3.Error as exc:
+            raise EngineError(f"characters set identity ref fallo: {exc}") from exc
 
     def remove_ref(
         self,
@@ -469,6 +534,21 @@ class CharacterStore:
                     return False
                 target = self._resolve_relpath(row[0], refs_root=refs_root)
                 conn.execute("DELETE FROM character_refs WHERE id = ?", (ref_id,))
+                has_identity = conn.execute(
+                    "SELECT 1 FROM character_refs WHERE character_id=? AND is_identity=1 LIMIT 1",
+                    (char_id,),
+                ).fetchone()
+                if not has_identity:
+                    candidates = conn.execute(
+                        "SELECT id, relpath FROM character_refs WHERE character_id=? ORDER BY id",
+                        (char_id,),
+                    ).fetchall()
+                    fallback = next((item for item in candidates if not is_sheet(item[1])), None)
+                    if fallback:
+                        conn.execute(
+                            "UPDATE character_refs SET is_identity=1 WHERE id=?",
+                            (fallback[0],),
+                        )
         except sqlite3.Error as exc:
             raise EngineError(f"characters remove_ref fallo: {exc}") from exc
         target.unlink(missing_ok=True)

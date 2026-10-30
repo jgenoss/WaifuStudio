@@ -18,6 +18,8 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from scripts import parallel_download as download_accel
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -149,6 +151,40 @@ class VerifyTests(unittest.TestCase):
 
 
 class DownloadRetryTests(unittest.TestCase):
+    def setUp(self):
+        self.status_tmp = tempfile.TemporaryDirectory()
+        self.status_patch = mock.patch.object(download_accel, "STATUS_DIR", Path(self.status_tmp.name))
+        self.status_patch.start()
+
+    def tearDown(self):
+        self.status_patch.stop()
+        self.status_tmp.cleanup()
+
+    def test_usa_acelerador_para_archivo_grande_y_verifica_hash(self):
+        payload = b"M" * (download_llm.MIN_PARALLEL_SIZE + 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            entry = {
+                "id": "large-model", "filename": "large.gguf", "target": "dest",
+                "url": "https://example.invalid/large",
+                "sha256": hashlib.sha256(payload).hexdigest().upper(), "bytes": len(payload),
+            }
+
+            def fake_parallel(_url, partial, *, expected_bytes, workers):
+                self.assertEqual(expected_bytes, len(payload))
+                self.assertEqual(workers, 4)
+                Path(partial).parent.mkdir(parents=True, exist_ok=True)
+                Path(partial).write_bytes(payload)
+                return True
+
+            with mock.patch.object(download_accel, "STATUS_DIR", root / "status"), \
+                 mock.patch.object(download_llm, "download_parallel", side_effect=fake_parallel) as accelerated:
+                ok = download_llm.download(entry, root, workers=4)
+
+            self.assertTrue(ok)
+            accelerated.assert_called_once()
+            self.assertEqual((root / "dest" / "large.gguf").read_bytes(), payload)
+
     def test_416_al_reanudar_reintenta_completo_y_verifica(self):
         payload = b"pesos correctos"
         with tempfile.TemporaryDirectory() as tmp:
@@ -181,6 +217,44 @@ class DownloadRetryTests(unittest.TestCase):
             self.assertEqual(calls, [len(payload), 0])
             self.assertEqual(target.read_bytes(), payload)
             self.assertFalse(part.exists())
+
+    def test_corte_actualiza_url_y_reanuda_desde_el_byte_guardado(self):
+        payload = b"modelo de prueba que se reanuda"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            entry = {
+                "id": "item", "filename": "item.bin", "target": "dest",
+                "url": "https://example.invalid/model",
+                "sha256": hashlib.sha256(payload).hexdigest().upper(), "bytes": len(payload),
+            }
+            requests = []
+
+            class Response:
+                def __init__(self, status, pieces):
+                    self.status = status
+                    self.pieces = iter(pieces)
+
+                def __enter__(self): return self
+                def __exit__(self, *_args): return False
+                def read(self, _size):
+                    piece = next(self.pieces)
+                    if isinstance(piece, Exception): raise piece
+                    return piece
+
+            def fake_open(url, *, start=None):
+                requests.append((url, start))
+                # La URL canónica se vuelve a consultar y el servidor entrega
+                # un destino renovado, conservando el Range solicitado.
+                if len(requests) == 1:
+                    return Response(200, [payload[:8], b""])
+                return Response(206, [payload[start:], b""])
+
+            with mock.patch.object(download_llm, "_open", fake_open), \
+                 mock.patch.object(download_llm.time, "sleep"):
+                self.assertTrue(download_llm.download(entry, root))
+            self.assertEqual([offset for _url, offset in requests], [0, 8])
+            self.assertEqual(requests[0][0], requests[1][0])
+            self.assertEqual((root / "dest" / "item.bin").read_bytes(), payload)
 
     def test_mismatch_de_hash_conserva_part(self):
         payload = b"datos"

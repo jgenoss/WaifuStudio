@@ -53,8 +53,15 @@ def _env_str(name: str, default: str) -> str:
 
 def load_config() -> EngineConfig:
     """Construye la config desde defaults más overrides de entorno."""
+    comfy_root = _env_path("WAIFU_COMFY_ROOT", DEFAULT_COMFY_ROOT)
+    # Overrides persistentes pueden quedar apuntando a un checkout ya movido.
+    # Si esa ruta ya no existe y el ComfyUI integrado sí está presente, usa el
+    # engine portable junto a esta app para que el escaneo y las generaciones
+    # resuelvan los mismos modelos descargados por el portal.
+    if not comfy_root.is_dir() and DEFAULT_COMFY_ROOT.is_dir():
+        comfy_root = DEFAULT_COMFY_ROOT
     return EngineConfig(
-        comfy_root=_env_path("WAIFU_COMFY_ROOT", DEFAULT_COMFY_ROOT),
+        comfy_root=comfy_root,
         comfy_url=_env_str("WAIFU_COMFY_URL", DEFAULT_COMFY_URL),
         data_dir=_env_path("WAIFU_DATA_DIR", APP_ROOT / "data"),
     )
